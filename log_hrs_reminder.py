@@ -158,43 +158,6 @@ def send_texts(phone_list, message):
 
 def get_json_default(key):
     return default_dispatch.get(key, default)()
-    
-# !!! ATTENTION !!!
-# This function can probably go
-def get_all_defaults():
-    default_dict = {}
-
-    for default in default_dispatch:
-        default_dict.update({default : get_json_default(default)})
-
-    return default_dict
-        
-
-# !!! ATTENTION !!!
-# This function can probably go
-def assign_from_defaults():
-    if any(vars(arguments).values()):
-        # if something was assigned via the CLI
-        # put arguments into a dictionary
-        args_dict = vars(arguments)
-
-        #make a list for adding defaults to:
-        default_list = []
-        default_dict = {}
-
-        # loop through the values to check if it should be overridden by arguments or go to default
-        for key in args_dict.keys():
-            # if it doesn't show up in the args list, we'll get the defaults
-            if not args_dict[key]:
-                # add the key to the list
-                default_list.append(key)
-
-        for item in default_list:
-            default_dict.update({item: get_json_default(item)})
-
-        return default_dict
-    else:
-        return get_all_defaults()
 
 def assign_from_arguments():
     #check that there are arguments

@@ -1,0 +1,37 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Secrets or config files
+*.json
+*.key
+*.pem
+*.db
+config.yaml
+secrets/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebooks (if used)
+.ipynb_checkpoints/
+
+# VS Code settings (optional)
+.vscode/
+
+# Logs
+*.log
+logs/
