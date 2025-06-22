@@ -13,8 +13,8 @@ import requests
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 import os
-#get addresses etc. from the json
 import json
+import re
 
 # !!! ATTENTION !!!
 # JSON file is hardcoded to default file. Add logic for file selection through argument and use a default fallback in the .env
@@ -123,36 +123,49 @@ def arguments_or_default(key):
     #check if there's an argument to use, if not return the default
     return args_dispatch[key]() or default_dispatch[key]()
 
-# !!! ATTENTION !!!
-# This could use some validation. Maybe a regular expression to validte format
+def validate_email(email):
+    pattern = r"[\w\.-]+@[\w\.-]+.\w{2,}$"
+
+    return re.match(pattern, email)
+
+def validate_phone(phone):
+    pattern = r"\d{10}$"
+
+    return re.match(pattern, phone)
+
 def send_emails(recipient_list, message, subject):
     try: 
         mailer = yagmail.SMTP(os.getenv("EMAIL"), os.getenv("APP_PW"))
 
         #Loop through and message each recipient
         for recipient in recipient_list:
-            print(f"Sending to {recipient}")
-            mailer.send(recipient, subject, message)
+            if validate_email(recipient):
+                print(f"Sending to {recipient}")
+                mailer.send(recipient, subject, message)
+            else:
+                print(f"invalid email: {recipient}")
+
     except yagmail.error.YagInvalidEmailAddress as e:
             print(f"unable to send. No username or password. {e}")
     except Exception as e:
             print(f"Unable to send. {e}")
 
-# !!! ATTENTION !!!
-# This could use some validation. Maybe a regular expression to validte format
 def send_texts(phone_list, message):
     try:
         #text all recipients
         #!!! ATTENTION !!!
         #apend _test to the API key and it will send a test message without using a credit.
-        for text_recipient in phone_list:   
-            resp = requests.post('https://textbelt.com/text', {
-                'phone': text_recipient,
-                'message': message,
-                'key': os.getenv("TB_API_KEY") + '_test',
-            })
+        for text_recipient in phone_list:  
+            if(validate_phone(text_recipient)): 
+                resp = requests.post('https://textbelt.com/text', {
+                    'phone': text_recipient,
+                    'message': message,
+                    'key': os.getenv("TB_API_KEY") + '_test',
+                })
 
-            print(f"Sent to {text_recipient}. -- Response {resp.json()}")
+                print(f"Sent to {text_recipient}. -- Response {resp.json()}")
+            else:
+                print(f"invalid {text_recipient}")
     except Exception as e:
         print(f"Exception in text function: {e}")
 
