@@ -125,13 +125,13 @@ def arguments_or_default(key):
 
 def validate_email(email):
     #check that email address is formatted correctly
-    pattern = r"[\w\.-]+@[\w\.-]+.\w{2,}$"
+    pattern = r"^[\w\.-]+@[\w\.-]+\.\w{2,}$"
 
     return re.match(pattern, email)
 
 def validate_phone(phone):
     #check that phone number is formatted 5555555555
-    pattern = r"\d{10}$"
+    pattern = r"^\d{10}$"
 
     return re.match(pattern, phone)
 
