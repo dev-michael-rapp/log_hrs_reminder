@@ -106,6 +106,9 @@ def get_time():
 def get_days():
     return email_data["days"]
 
+def get_method():
+    return email_data["method"]
+
 def default_fallback():
     logging.warning("Ivalid dispatch key in default dispatch")
     raise ValueError("Ivalid dispatch key in default dispatch")
@@ -117,7 +120,8 @@ default_dispatch = {
     "subject": get_subject,
     "message": get_message,
     "time": get_time,
-    "days": get_days
+    "days": get_days,
+    "method": get_method
 }
 
 #get methods for arguments
@@ -212,7 +216,7 @@ def send_texts(phone_list, message):
                 resp = requests.post('https://textbelt.com/text', {
                     'phone': text_recipient,
                     'message': message,
-                    'key': os.getenv("TB_API_KEY") + '_test',
+                    'key': os.getenv("TB_API_KEY"),
                 })
 
                 # !!! ATTENTION !!!
@@ -223,7 +227,7 @@ def send_texts(phone_list, message):
                 print(f"Sent to {text_recipient}")
 
                 # log the API response for reference
-                logging.info(f"textbelt response: {resp.json}")
+                logging.info(f"textbelt response: {json.dumps(resp.json())}")
             else:
                 logging.warning(f"Invaild phone number: {text_recipient}")
     except Exception as e:
@@ -251,7 +255,9 @@ def assign_from_arguments():
 
 
 def get_alert_method():
-    # decided if we're sending emails, texts or both. Default case is email (it's free).
+    # decided if we're sending emails, texts or both. Defaulting to text rather than email. I prefer the text.
+    # !!! ATTENTION !!!
+    # Set a default in the json 
     if vars(arguments)["recipients"] and vars(arguments)["phones"] or vars(arguments)["method"] == "both":
         return "both"
     elif vars(arguments)["method"] == "email" or vars(arguments)["recipients"]:
@@ -259,7 +265,7 @@ def get_alert_method():
     elif vars(arguments)["method"] == "text" or vars(arguments)["phones"]:
         return "text"
     else:
-        return "email"
+        return "text"
     
 def send_alert():
     method = get_alert_method()
