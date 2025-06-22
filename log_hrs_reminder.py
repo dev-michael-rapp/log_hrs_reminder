@@ -11,11 +11,17 @@ import yagmail
 import requests
 #handles .env stuff
 from pathlib import Path
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 import os
 import json
 import re
 import logging
+
+
+# Since we're running with Task Scheduler locally we need to give it the directory
+# for the log file so it doesn't try to write to one in system32....sigh
+parent_directory = Path(__file__).parent
+log_file = parent_directory / "reminder.log"
 
 # setup the logging
 # give it a filename to output to
@@ -24,7 +30,7 @@ import logging
 # format the time stamps to be easier to read
 logging.basicConfig(
     level=logging.INFO,
-    filename="reminder.log",
+    filename=log_file,
     filemode="a",
     format="%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
@@ -86,10 +92,10 @@ def get_recipients():
     return email_data["recipients"]
 
 def get_subject():
-    return email_data["subjects"]["default"]
+    return email_data["subject"]
 
 def get_message():
-    return email_data["messages"]["default"]
+    return email_data["message"]
 
 def get_phone_numbers():
     return email_data["phone_numbers"]
