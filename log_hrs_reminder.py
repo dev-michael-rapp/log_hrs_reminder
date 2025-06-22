@@ -15,14 +15,32 @@ from dotenv import load_dotenv, find_dotenv
 import os
 import json
 import re
+import logging
 
-# !!! ATTENTION !!!
-# JSON file is hardcoded to default file. Add logic for file selection through argument and use a default fallback in the .env
-#get the path for the file because dotenv isn't finding it on it's own. Figure out later:
+# setup the logging
+# give it a filename to output to
+# a = append, w = overwrite. We're going to do append because we want a history
+# format the output to be a little more legible
+# format the time stamps to be easier to read
+logging.basicConfig(
+    level=logging.INFO,
+    filename="reminder.log",
+    filemode="a",
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# Log start of script
+logging.info("Script started.")
+
+#get the .env path
 env_path = Path(__file__).resolve().parent / "gmail.env"
-json_path = Path(__file__).resolve().parent / "email_data.json"
+
 #load .env file where sending email and password are stored
 load_dotenv(dotenv_path=env_path)
+
+#get json path from .env
+json_path = os.getenv("JSON_PATH")
 
 #initialize parser for CLI arguments
 parser = argparse.ArgumentParser(description="This script sends a text or email reminder to target recipients at set time and date intervals")
@@ -39,13 +57,31 @@ parser.add_argument("--method", type=str, help="How is the reminder being sent? 
 
 arguments = parser.parse_args()
 
-with open(json_path) as file:
-        email_data = json.load(file)
+def get_json_file():
+    try:
+        with open(json_path) as file:
+            email_data = json.load(file)
+        
+        logging.info(f"{json_path} successfully loaded.")
+        return email_data
+    # Handle the exceptions and log them. Exit early.
+    except FileNotFoundError:
+        logging.exception(f"File not found: {json_path}")
+        exit()
+    except json.JSONDecodeError as e:
+        logging.exception(f"JSON error: {e}")
+        exit()
+    except PermissionError:
+        logging.exception(f"Permission denied accessing: {json_path}")
+        exit()
+    except Exception as e:
+        logging.exception(f"Unhandle exception trying to access {json_path}: {e}")
+        exit()
+
 
 #Get functions to grab defaults from the JSON file for no, or partial arguments.
-#****TO_UPDATE**** add logging as well as printed messages. Maybe a single function to handle that so
-# we can see who was messaged, what was messaged, and when. 
-# Also confirmations for texts if we can.
+email_data = get_json_file()
+
 def get_recipients():
     return email_data["recipients"]
 
@@ -64,7 +100,8 @@ def get_time():
 def get_days():
     return email_data["days"]
 
-def default():
+def default_fallback():
+    logging.warning("Ivalid dispatch key in default dispatch")
     raise ValueError("Ivalid dispatch key in default dispatch")
 
 #dispatch dictionary to avoid messy if/elif chain.
@@ -110,6 +147,10 @@ def get_arg_method():
         return vars(arguments)["method"]
     else:
         return None
+
+def args_fallback():
+    logging.error("Invalid argument key in argument dispatch")
+    raise ValueError("Ivalid argument key in argument dispatch")
     
 args_dispatch = {
     "recipients": get_arg_recipients,
@@ -121,14 +162,14 @@ args_dispatch = {
 
 def arguments_or_default(key):
     #check if there's an argument to use, if not return the default
-    return args_dispatch[key]() or default_dispatch[key]()
+    return args_dispatch.get(key, args_fallback)() or default_dispatch.get(key, default_fallback)()
 
 def validate_email(email):
     #check that email address is formatted correctly
     pattern = r"^[\w\.-]+@[\w\.-]+\.\w{2,}$"
 
     return re.match(pattern, email)
-
+    
 def validate_phone(phone):
     #check that phone number is formatted 5555555555
     pattern = r"^\d{10}$"
@@ -142,15 +183,18 @@ def send_emails(recipient_list, message, subject):
         #Loop through and message each recipient
         for recipient in recipient_list:
             if validate_email(recipient):
+                # let user know something is happening
                 print(f"Sending to {recipient}")
                 mailer.send(recipient, subject, message)
-            else:
-                print(f"invalid email: {recipient}")
 
+                # log for referrence
+                logging.info(f"Email sent to: {recipient}")
+            else:
+                logging.warning(f"Invalid email {recipient}")
     except yagmail.error.YagInvalidEmailAddress as e:
-            print(f"unable to send. No username or password. {e}")
+            logging.exception(f"unable to send. No username or password. {e}")
     except Exception as e:
-            print(f"Unable to send. {e}")
+            logging.exception(f"Unhandle exception in send_emails: {e}")
 
 def send_texts(phone_list, message):
     try:
@@ -165,18 +209,28 @@ def send_texts(phone_list, message):
                     'key': os.getenv("TB_API_KEY") + '_test',
                 })
 
-                print(f"Sent to {text_recipient}. -- Response {resp.json()}")
+                # !!! ATTENTION !!!
+                # We should be checking that the response JSON shows a succesful send
+                # and handle and log the result
+
+                # Let user see something has happened
+                print(f"Sent to {text_recipient}")
+
+                # log the API response for reference
+                logging.info(f"textbelt response: {resp.json}")
             else:
-                print(f"invalid {text_recipient}")
+                logging.warning(f"Invaild phone number: {text_recipient}")
     except Exception as e:
-        print(f"Exception in text function: {e}")
+        logging.exception(f"Unhandled exception in send_texts: {e}")
 
 def get_json_default(key):
-    return default_dispatch.get(key, default)()
+    return default_dispatch.get(key, default_fallback)()
 
 def assign_from_arguments():
+    args_dict = vars(arguments)
+
     #check that there are arguments
-    if any(vars(arguments).values()):
+    if any(args_dict.value()):
         args_dict = vars(arguments)
         #make a dictionary to hold values that are filled through arguments to be returned
         return_dict = {}
@@ -203,7 +257,7 @@ def get_alert_method():
     
 def send_alert():
     method = get_alert_method()
-    #decide if we're sending emails, texts or both run use send_emails or send_texts functions with the arguments_or_default function
+    #decide if we're sending emails, texts or both, run send_emails or send_texts functions with the arguments_or_default function
     if method == "email":
         send_emails(arguments_or_default("recipients"), arguments_or_default("message"), arguments_or_default("subject"))
 
@@ -215,3 +269,6 @@ def send_alert():
         send_texts(arguments_or_default("phones"),arguments_or_default("message"))
 
 send_alert()
+
+# log end of script
+logging.info("Script ended")
