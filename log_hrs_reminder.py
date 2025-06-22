@@ -34,7 +34,7 @@ logging.basicConfig(
 logging.info("Script started.")
 
 #get the .env path
-env_path = Path(__file__).resolve().parent / "gmail.env"
+env_path = Path(__file__).resolve().parent / ".env"
 
 #load .env file where sending email and password are stored
 load_dotenv(dotenv_path=env_path)
