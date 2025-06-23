@@ -39,11 +39,14 @@ logging.basicConfig(
 # Log start of script
 logging.info("Script started.")
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
 #get the .env path
 env_path = Path(__file__).resolve().parent / ".env"
 
+os.chdir(script_dir)
 #load .env file where sending email and password are stored
-load_dotenv(dotenv_path=env_path)
+load_dotenv(dotenv_path=os.path.join(script_dir, ".env"))
 
 #get json path from .env
 json_path = os.getenv("JSON_PATH")
@@ -65,7 +68,7 @@ arguments = parser.parse_args()
 
 def get_json_file():
     try:
-        with open(json_path) as file:
+        with open(os.path.join(script_dir, ".json")) as file:
             email_data = json.load(file)
         
         logging.info(f"{json_path} successfully loaded.")
@@ -216,7 +219,7 @@ def send_texts(phone_list, message):
                 resp = requests.post('https://textbelt.com/text', {
                     'phone': text_recipient,
                     'message': message,
-                    'key': os.getenv("TB_API_KEY"),
+                    'key': os.getenv("TB_API_KEY") + "_test",
                 })
 
                 # !!! ATTENTION !!!
@@ -282,5 +285,6 @@ def send_alert():
 
 send_alert()
 
+print("Done")
 # log end of script
 logging.info("Script ended")
