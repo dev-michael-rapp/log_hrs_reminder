@@ -57,15 +57,35 @@ parser = argparse.ArgumentParser(description="This script sends a text or email 
 #define keyword arguments for CLI
 parser.add_argument("--recipients", nargs="*", help="A list of recipients")
 parser.add_argument("--phones", nargs="*", help="A list of 10 digit phone numbers formatted 5555555555")
-parser.add_argument("--time", type=str, help="The time to send. Formatted: HH:MM:AM")
-parser.add_argument("--days", nargs="*", help="A list of the days to run. Formatted [M,T,W,TH,F,S,SU.]")
 parser.add_argument("--message", type=str, help="Message body to be sent")
 parser.add_argument("--subject", type=str, help="Subject line for email")
 parser.add_argument("--file", type=str, help="A file to read from")
 parser.add_argument("--method", type=str, help="How is the reminder being sent? Email, text or both?")
 
-arguments = parser.parse_args()
+# !!! ATTENTION !!!
+# We'll comment these for now but we should use them to write a config for cron once we're ready for that
 
+# parser.add_argument("--time", type=str, help="The time to send. Formatted: HH:MM:AM")
+# parser.add_argument("--days", nargs="*", help="A list of the days to run. Formatted [M,T,W,TH,F,S,SU.]")
+
+# !!! UPDATE !!!
+# Converting arguments in to a dictionary to reduce the amount of function calls
+arguments = vars(parser.parse_args())
+logging.info(f"arguments: {arguments}")
+
+# !!! UPDATE !!!
+# Made a single get argument function and reducing the amount of vars() function calls to clean thing up
+def get_arg(key):
+    #check valid key
+    if key in arguments:
+        if arguments.get(key):
+            return arguments.get(key)
+        else:
+            return None
+    else:
+        logging.error("Invalid key in argument: {key}")
+        raise ValueError
+    
 def get_json_file():
     try:
         with open(os.path.join(script_dir, ".json")) as file:
@@ -87,95 +107,26 @@ def get_json_file():
         logging.exception(f"Unhandle exception trying to access {json_path}: {e}")
         exit()
 
+json_data = get_json_file()
+logging.info(f"JSON: {json_data}")
 
-#Get functions to grab defaults from the JSON file for no, or partial arguments.
-email_data = get_json_file()
-
-def get_recipients():
-    return email_data["recipients"]
-
-def get_subject():
-    return email_data["subject"]
-
-def get_message():
-    return email_data["message"]
-
-def get_phone_numbers():
-    return email_data["phone_numbers"]
-
-def get_time():
-    return email_data["time"]
-
-def get_days():
-    return email_data["days"]
-
-def get_method():
-    return email_data["method"]
-
-def default_fallback():
-    logging.warning("Ivalid dispatch key in default dispatch")
-    raise ValueError("Ivalid dispatch key in default dispatch")
-
-#dispatch dictionary to avoid messy if/elif chain.
-default_dispatch = {
-    "recipients": get_recipients,
-    "phones": get_phone_numbers,
-    "subject": get_subject,
-    "message": get_message,
-    "time": get_time,
-    "days": get_days,
-    "method": get_method
-}
-
-#get methods for arguments
-
-#get recipients
-def get_arg_recipients():
-    if vars(arguments)["recipients"]:
-        return vars(arguments)['recipients']
+# !!! UPDATE !!!
+# made a single get for JSON data to clean up. Also moved it up to better match scripts
+# progressive logic
+def get_json(key):
+    if key in json_data:
+        if json_data[key]:
+            return json_data[key]
+        else:
+            return None
     else:
-        return None
-           
-#get phones
-def get_arg_phones():
-    if vars(arguments)["phones"]:
-        return vars(arguments)["phones"]
-    else:
-        return None
-#get message
-def get_arg_message():
-    if vars(arguments)["message"]:
-        return vars(arguments)["message"]
-    else:
-        return None
-#get subject
-def get_arg_subject():
-    if vars(arguments)["subject"]:
-        return vars(arguments)["subject"]
-    else:
-        return None
-#get method
-def get_arg_method():
-    if vars(arguments)["method"]:
-        return vars(arguments)["method"]
-    else:
-        return None
-
-def args_fallback():
-    logging.error("Invalid argument key in argument dispatch")
-    raise ValueError("Ivalid argument key in argument dispatch")
-    
-args_dispatch = {
-    "recipients": get_arg_recipients,
-    "phones": get_arg_phones,
-    "message": get_arg_message,
-    "subject": get_arg_subject,
-    "method": get_arg_method
-}
+        logging.error(f"Invalid Key for JSON: {key}")
+        raise ValueError
 
 def arguments_or_default(key):
     #check if there's an argument to use, if not return the default
-    return args_dispatch.get(key, args_fallback)() or default_dispatch.get(key, default_fallback)()
+    # return args_dispatch.get(key, args_fallback)() or default_dispatch.get(key, default_fallback)()
+    return get_arg(key) or get_json(key)
 
 def validate_email(email):
     #check that email address is formatted correctly
@@ -188,6 +139,12 @@ def validate_phone(phone):
     pattern = r"^\d{10}$"
 
     return re.match(pattern, phone)
+
+def log_text_response(response_data, phone):
+    if response_data["success"]:
+        logging.info(f"text successfully sent to {phone}")
+    else:
+        logging.warning(f"text failed to: {phone}")
 
 def send_emails(recipient_list, message, subject):
     try: 
@@ -212,32 +169,37 @@ def send_emails(recipient_list, message, subject):
 def send_texts(phone_list, message):
     try:
         #text all recipients
-        #!!! ATTENTION !!!
-        #apend _test to the API key and it will send a test message without using a credit.
+        # !!! UPDATE !!!
+        # Assigning api key outside of loop to reduce function calls and clean up
+
+        # !!! ATTENTION !!!
+        # Make a function to assign the API key or test key based on arguments or json
+        # the API requires credits and we don't want to have to buy when we can test for free
+        api_key = os.getenv("TB_API_KEY")
+        test_key = api_key + "_test"
+
         for text_recipient in phone_list:  
             if(validate_phone(text_recipient)): 
                 resp = requests.post('https://textbelt.com/text', {
                     'phone': text_recipient,
                     'message': message,
-                    'key': os.getenv("TB_API_KEY") + "_test",
+                    'key': test_key,
                 })
 
-                # !!! ATTENTION !!!
-                # We should be checking that the response JSON shows a succesful send
-                # and handle and log the result
+                response_data = json.dumps(resp.json())
 
                 # Let user see something has happened
                 print(f"Sent to {text_recipient}")
 
                 # log the API response for reference
-                logging.info(f"textbelt response: {json.dumps(resp.json())}")
+                log_text_response(response_data, text_recipient)
             else:
                 logging.warning(f"Invaild phone number: {text_recipient}")
     except Exception as e:
         logging.exception(f"Unhandled exception in send_texts: {e}")
 
 def get_json_default(key):
-    return default_dispatch.get(key, default_fallback)()
+    return get_json(key)
 
 def assign_from_arguments():
     args_dict = vars(arguments)
@@ -256,16 +218,13 @@ def assign_from_arguments():
     else:
         return None
 
-
 def get_alert_method():
     # decided if we're sending emails, texts or both. Defaulting to text rather than email. I prefer the text.
-    # !!! ATTENTION !!!
-    # Set a default in the json 
-    if vars(arguments)["recipients"] and vars(arguments)["phones"] or vars(arguments)["method"] == "both":
+    if arguments["recipients"] and arguments["phones"] or arguments["method"] == "both":
         return "both"
-    elif vars(arguments)["method"] == "email" or vars(arguments)["recipients"]:
+    elif arguments["method"] == "email" or arguments["recipients"]:
         return "email"
-    elif vars(arguments)["method"] == "text" or vars(arguments)["phones"]:
+    elif arguments["method"] == "text" or ["phones"]:
         return "text"
     else:
         return "text"
@@ -286,5 +245,6 @@ def send_alert():
 send_alert()
 
 print("Done")
+
 # log end of script
 logging.info("Script ended")
